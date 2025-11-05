@@ -1,4 +1,6 @@
-# Oxdraw For Desktop
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 ## Project Overview
 
@@ -27,9 +29,17 @@ npm run build        # Production build to frontend/out/
 cargo build          # Debug build
 cargo build --release  # Optimized build
 
+# Build without server feature (lightweight, rendering-only)
+cargo build --no-default-features
+
 # Run tests
 cargo test           # Run all tests
 cargo test --test cli  # Run CLI integration tests
+cargo test --test library  # Run library unit tests
+cargo test --test wasm_compatibility  # Run WASM tests
+
+# Run specific test
+cargo test <test_name>  # Run a single test by name
 
 # WASM support
 rustup target add wasm32-unknown-unknown
