@@ -614,6 +614,136 @@ fn update_layout(state: tauri::State<AppState>, payload: LayoutUpdate) -> Result
     Ok(payload)
 }
 
+// Helper function to prune overrides for a diagram
+fn prune_overrides_for_diagram(
+    diagram: &Diagram,
+    overrides: &mut LayoutOverrides,
+) {
+    use std::collections::HashSet;
+
+    let node_ids: HashSet<String> = diagram.nodes.keys().cloned().collect();
+    let edge_ids: HashSet<String> = diagram
+        .edges
+        .iter()
+        .map(|edge| edge_identifier(edge))
+        .collect();
+
+    overrides.prune(&node_ids, &edge_ids);
+}
+
+#[tauri::command]
+fn delete_node(state: tauri::State<AppState>, node_id: String) -> Result<DiagramPayload, String> {
+    // Get source path
+    let source_path = {
+        let guard = state
+            .source_path
+            .lock()
+            .map_err(|_| "failed to lock source path".to_string())?;
+        guard.clone().ok_or_else(|| "source path not set".to_string())?
+    };
+
+    let payload = (|| -> anyhow::Result<DiagramPayload> {
+        // Read and parse the current diagram
+        let source = std::fs::read_to_string(&source_path)
+            .with_context(|| format!("failed to read '{}'", source_path.display()))?;
+        let mut diagram = Diagram::parse(&source)?;
+
+        // Check if we can delete this node (must have at least one node)
+        if diagram.nodes.len() == 1 && diagram.nodes.contains_key(&node_id) {
+            anyhow::bail!("diagram must contain at least one node");
+        }
+
+        // Attempt to remove the node
+        if !diagram.remove_node(&node_id) {
+            anyhow::bail!("node '{}' not found", node_id);
+        }
+
+        // Write the modified diagram back to file
+        let rewritten = diagram.to_definition();
+        std::fs::write(&source_path, rewritten.as_bytes())
+            .with_context(|| format!("failed to write '{}'", source_path.display()))?;
+
+        // Prune overrides to remove references to deleted node and orphaned edges
+        let mut overrides = state
+            .overrides
+            .lock()
+            .map_err(|_| anyhow!("failed to lock overrides"))?;
+        prune_overrides_for_diagram(&diagram, &mut overrides);
+        let snapshot = overrides.clone();
+        drop(overrides);
+
+        // Merge the definition with cleaned overrides
+        let merged = merge_source_and_overrides(&rewritten, &snapshot)?;
+        std::fs::write(&source_path, merged.as_bytes())
+            .with_context(|| format!("failed to write '{}'", source_path.display()))?;
+
+        // Build and return the updated payload
+        let background = state
+            .background
+            .lock()
+            .map_err(|_| anyhow!("failed to lock background"))?
+            .clone();
+        build_diagram_payload(&source_path, &background, &diagram, &snapshot, merged)
+    })()
+    .map_err(|e| e.to_string())?;
+
+    Ok(payload)
+}
+
+#[tauri::command]
+fn delete_edge(state: tauri::State<AppState>, edge_id: String) -> Result<DiagramPayload, String> {
+    // Get source path
+    let source_path = {
+        let guard = state
+            .source_path
+            .lock()
+            .map_err(|_| "failed to lock source path".to_string())?;
+        guard.clone().ok_or_else(|| "source path not set".to_string())?
+    };
+
+    let payload = (|| -> anyhow::Result<DiagramPayload> {
+        // Read and parse the current diagram
+        let source = std::fs::read_to_string(&source_path)
+            .with_context(|| format!("failed to read '{}'", source_path.display()))?;
+        let mut diagram = Diagram::parse(&source)?;
+
+        // Attempt to remove the edge
+        if !diagram.remove_edge_by_identifier(&edge_id) {
+            anyhow::bail!("edge '{}' not found", edge_id);
+        }
+
+        // Write the modified diagram back to file
+        let rewritten = diagram.to_definition();
+        std::fs::write(&source_path, rewritten.as_bytes())
+            .with_context(|| format!("failed to write '{}'", source_path.display()))?;
+
+        // Prune overrides to remove references to deleted edge
+        let mut overrides = state
+            .overrides
+            .lock()
+            .map_err(|_| anyhow!("failed to lock overrides"))?;
+        prune_overrides_for_diagram(&diagram, &mut overrides);
+        let snapshot = overrides.clone();
+        drop(overrides);
+
+        // Merge the definition with cleaned overrides
+        let merged = merge_source_and_overrides(&rewritten, &snapshot)?;
+        std::fs::write(&source_path, merged.as_bytes())
+            .with_context(|| format!("failed to write '{}'", source_path.display()))?;
+
+        // Build and return the updated payload
+        let background = state
+            .background
+            .lock()
+            .map_err(|_| anyhow!("failed to lock background"))?
+            .clone();
+        build_diagram_payload(&source_path, &background, &diagram, &snapshot, merged)
+    })()
+    .map_err(|e| e.to_string())?;
+
+    Ok(payload)
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -622,6 +752,8 @@ pub fn run() {
             load_diagram,
             update_layout,
             update_style,
+            delete_node,
+            delete_edge,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
