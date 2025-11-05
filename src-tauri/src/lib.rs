@@ -5,6 +5,7 @@ use std::sync::Mutex;
 use serde::{Deserialize, Serialize};
 use oxdraw::*;
 use anyhow::{anyhow, Context};
+use tauri_plugin_dialog::DialogExt;
 
 // Application state management
 pub struct AppState {
@@ -619,6 +620,7 @@ fn update_layout(state: tauri::State<AppState>, payload: LayoutUpdate) -> Result
     Ok(payload)
 }
 
+<<<<<<< HEAD
 // Helper function to prune overrides for a diagram
 fn prune_overrides_for_diagram(
     diagram: &Diagram,
@@ -875,6 +877,29 @@ fn delete_edge(state: tauri::State<AppState>, edge_id: String) -> Result<Diagram
     Ok(payload)
 }
 
+#[tauri::command]
+async fn open_file_dialog(app: tauri::AppHandle) -> Result<Option<String>, String> {
+    let file_path = app
+        .dialog()
+        .file()
+        .add_filter("Mermaid Diagrams", &["mmd"])
+        .blocking_pick_file();
+
+    Ok(file_path.and_then(|path| path.as_path().map(|p| p.display().to_string())))
+}
+
+#[tauri::command]
+async fn save_file_dialog(app: tauri::AppHandle) -> Result<Option<String>, String> {
+    let file_path = app
+        .dialog()
+        .file()
+        .add_filter("Mermaid Diagrams", &["mmd"])
+        .set_file_name("diagram.mmd")
+        .blocking_save_file();
+
+    Ok(file_path.and_then(|path| path.as_path().map(|p| p.display().to_string())))
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -888,6 +913,8 @@ pub fn run() {
             render_svg,
             delete_node,
             delete_edge,
+            open_file_dialog,
+            save_file_dialog,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
