@@ -10,7 +10,13 @@
       "mcp__vibe_kanban__list_projects",
       "mcp__vibe_kanban__get_task",
       "Bash(git add:*)",
-      "Bash(git commit -m \"$(cat <<''EOF''\nfeat: add update_layout command (Task 2-3)\n\nImplemented layout update command for node positions and edge paths:\n- Applies position and path updates to LayoutOverrides\n- Persists changes to source files via merge_source_and_overrides\n- Returns updated DiagramPayload after recalculation\n- Supports clearing overrides by passing null values\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n\nCo-Authored-By: Claude <noreply@anthropic.com>\nEOF\n)\")"
+      "Bash(git commit -m \"$(cat <<''EOF''\nfeat: add update_layout command (Task 2-3)\n\nImplemented layout update command for node positions and edge paths:\n- Applies position and path updates to LayoutOverrides\n- Persists changes to source files via merge_source_and_overrides\n- Returns updated DiagramPayload after recalculation\n- Supports clearing overrides by passing null values\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n\nCo-Authored-By: Claude <noreply@anthropic.com>\nEOF\n)\")",
+      "mcp__vibe_kanban__update_task",
+      "mcp__vibe_kanban__start_task_attempt",
+      "Bash(/tmp/task-2-5-lib.rs)",
+      "Bash(git merge:*)",
+      "Bash(git commit:*)",
+      "Bash(git diff:*)"
     ],
     "deny": [],
     "ask": []
