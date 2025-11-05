@@ -701,6 +701,50 @@ fn update_source(state: tauri::State<AppState>, source: String) -> Result<(), St
     Ok(())
 }
 
+#[tauri::command]
+fn render_svg(state: tauri::State<AppState>) -> Result<String, String> {
+    // Get source path and background
+    let source_path = {
+        let guard = state
+            .source_path
+            .lock()
+            .map_err(|_| "failed to lock source path".to_string())?;
+        guard.clone().ok_or_else(|| "source path not set".to_string())?
+    };
+
+    let background = state
+        .background
+        .lock()
+        .map_err(|_| "failed to lock background".to_string())?
+        .clone();
+
+    // Get current overrides
+    let overrides = state
+        .overrides
+        .lock()
+        .map_err(|_| "failed to lock overrides".to_string())?
+        .clone();
+
+    // Read and parse diagram
+    let contents = std::fs::read_to_string(&source_path)
+        .map_err(|e| format!("failed to read '{}': {}", source_path.display(), e))?;
+    let (definition, _) = split_source_and_overrides(&contents).map_err(|e| e.to_string())?;
+    let diagram = Diagram::parse(&definition).map_err(|e| e.to_string())?;
+
+    // Render SVG with current overrides
+    let override_ref = if overrides.is_empty() {
+        None
+    } else {
+        Some(&overrides)
+    };
+
+    let svg = diagram
+        .render_svg(&background, override_ref)
+        .map_err(|e| e.to_string())?;
+
+    Ok(svg)
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -711,6 +755,7 @@ pub fn run() {
             update_style,
             get_source,
             update_source,
+            render_svg,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
