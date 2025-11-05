@@ -555,6 +555,37 @@ fn update_style(state: tauri::State<AppState>, payload: StyleUpdate) -> Result<D
 }
 
 #[tauri::command]
+async fn open_diagram(
+    app: tauri::AppHandle,
+    path: Option<String>,
+    state: tauri::State<'_, AppState>,
+) -> Result<DiagramPayload, String> {
+    let file_path = match path {
+        Some(p) => p,
+        None => {
+            // Show file dialog to select a .mmd file
+            use tauri_plugin_dialog::DialogExt;
+
+            let file_path_result = tauri_plugin_dialog::FileDialogBuilder::new(app.dialog().clone())
+                .add_filter("Mermaid Diagrams", &["mmd"])
+                .blocking_pick_file();
+
+            let file_path = file_path_result
+                .ok_or_else(|| "no file selected".to_string())?;
+
+            file_path
+                .into_path()
+                .map_err(|_| "invalid file path".to_string())?
+                .to_string_lossy()
+                .to_string()
+        }
+    };
+
+    // Use existing load_diagram command to load the file
+    load_diagram(file_path, state)
+}
+
+#[tauri::command]
 fn update_layout(state: tauri::State<AppState>, payload: LayoutUpdate) -> Result<DiagramPayload, String> {
     // Get source path
     let source_path = {
@@ -903,9 +934,11 @@ async fn save_file_dialog(app: tauri::AppHandle) -> Result<Option<String>, Strin
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_dialog::init())
         .manage(AppState::default())
         .invoke_handler(tauri::generate_handler![
             load_diagram,
+            open_diagram,
             update_layout,
             update_style,
             get_source,
