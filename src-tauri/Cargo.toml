@@ -1,0 +1,29 @@
+[package]
+name = "oxdraw-desktop"
+version = "0.1.1"
+edition = "2021"
+authors = ["Rohan Adwankar <rohan.adwankar@gmail.com>"]
+description = "Oxdraw Desktop Application"
+license = "MIT"
+
+[lib]
+name = "oxdraw_desktop"
+crate-type = ["cdylib", "rlib"]
+
+[[bin]]
+name = "oxdraw-desktop-bin"
+path = "src/main.rs"
+
+[build-dependencies]
+tauri-build = { version = "2.5", features = [] }
+
+[dependencies]
+tauri = { version = "2.5", features = ["protocol-asset"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+oxdraw = { path = "..", default-features = false }
+anyhow = "1"
+
+[features]
+default = ["custom-protocol"]
+custom-protocol = ["tauri/custom-protocol"]

@@ -1,0 +1,18 @@
+# Tauri監視から除外するファイル・ディレクトリ
+# プロジェクトルートからの相対パス（src-tauriから見て）
+
+# Next.jsのビルド生成物（完全に除外）
+**/frontend/.next/**
+**/frontend/out/**
+**/frontend/node_modules/**
+**/.next/**
+**/node_modules/**
+
+# Cargoビルド生成物
+**/target/**
+
+# その他
+**/.DS_Store
+**/*.log
+**/*.tmp
+**/*.swp

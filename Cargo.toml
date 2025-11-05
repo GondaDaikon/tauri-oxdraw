@@ -1,7 +1,11 @@
+[workspace]
+members = [".", "src-tauri"]
+resolver = "2"
+
 [package]
 name = "oxdraw"
 version = "0.1.1"
-edition = "2024"
+edition = "2021"
 include = [
 	"Cargo.toml",
 	"build.rs",
