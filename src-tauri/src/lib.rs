@@ -651,7 +651,6 @@ fn update_layout(state: tauri::State<AppState>, payload: LayoutUpdate) -> Result
     Ok(payload)
 }
 
-<<<<<<< HEAD
 // Helper function to prune overrides for a diagram
 fn prune_overrides_for_diagram(
     diagram: &Diagram,
