@@ -548,12 +548,79 @@ fn update_style(state: tauri::State<AppState>, payload: StyleUpdate) -> Result<D
     Ok(payload)
 }
 
+#[tauri::command]
+fn update_layout(state: tauri::State<AppState>, payload: LayoutUpdate) -> Result<DiagramPayload, String> {
+    // Get source path
+    let source_path = {
+        let guard = state
+            .source_path
+            .lock()
+            .map_err(|_| "failed to lock source path".to_string())?;
+        guard.clone().ok_or_else(|| "source path not set".to_string())?
+    };
+
+    // Apply layout updates to overrides in memory
+    let snapshot = {
+        let mut overrides = state
+            .overrides
+            .lock()
+            .map_err(|_| "failed to lock overrides".to_string())?;
+
+        for (id, value) in payload.nodes.into_iter() {
+            match value {
+                Some(point) => {
+                    overrides.nodes.insert(id, point);
+                }
+                None => {
+                    overrides.nodes.remove(&id);
+                }
+            }
+        }
+
+        for (id, value) in payload.edges.into_iter() {
+            match value {
+                Some(edge_override) if !edge_override.points.is_empty() => {
+                    overrides.edges.insert(id, edge_override);
+                }
+                _ => {
+                    overrides.edges.remove(&id);
+                }
+            }
+        }
+
+        overrides.clone()
+    };
+
+    // Persist to source file by merging definition with overrides
+    let payload = (|| -> anyhow::Result<DiagramPayload> {
+        let contents = std::fs::read_to_string(&source_path)
+            .with_context(|| format!("failed to read '{}'", source_path.display()))?;
+        let (definition, _) = split_source_and_overrides(&contents)?;
+        let merged = merge_source_and_overrides(&definition, &snapshot)?;
+        std::fs::write(&source_path, merged.as_bytes())
+            .with_context(|| format!("failed to write '{}'", source_path.display()))?;
+
+        // Recompute payload from definition + current overrides
+        let diagram = Diagram::parse(&definition)?;
+        let background = state
+            .background
+            .lock()
+            .map_err(|_| anyhow!("failed to lock background"))?
+            .clone();
+        build_diagram_payload(&source_path, &background, &diagram, &snapshot, merged)
+    })()
+    .map_err(|e| e.to_string())?;
+
+    Ok(payload)
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
         .manage(AppState::default())
         .invoke_handler(tauri::generate_handler![
             load_diagram,
+            update_layout,
             update_style,
         ])
         .run(tauri::generate_context!())
