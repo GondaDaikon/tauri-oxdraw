@@ -121,6 +121,11 @@ pub struct StyleUpdate {
     edge_styles: HashMap<String, Option<EdgeStylePatch>>,
 }
 
+#[derive(Debug, Serialize)]
+pub struct SourcePayload {
+    source: String,
+}
+
 // Helper functions
 
 #[tauri::command]
@@ -614,6 +619,88 @@ fn update_layout(state: tauri::State<AppState>, payload: LayoutUpdate) -> Result
     Ok(payload)
 }
 
+#[tauri::command]
+fn get_source(state: tauri::State<AppState>) -> Result<SourcePayload, String> {
+    // Get source path
+    let source_path = {
+        let guard = state
+            .source_path
+            .lock()
+            .map_err(|_| "failed to lock source path".to_string())?;
+        guard.clone().ok_or_else(|| "source path not set".to_string())?
+    };
+
+    // Read current file contents
+    let source = std::fs::read_to_string(&source_path)
+        .map_err(|e| format!("failed to read '{}': {}", source_path.display(), e))?;
+
+    Ok(SourcePayload { source })
+}
+
+#[tauri::command]
+fn update_source(state: tauri::State<AppState>, source: String) -> Result<(), String> {
+    // Get source path
+    let source_path = {
+        let guard = state
+            .source_path
+            .lock()
+            .map_err(|_| "failed to lock source path".to_string())?;
+        guard.clone().ok_or_else(|| "source path not set".to_string())?
+    };
+
+    // Parse and validate the new source
+    let (definition, parsed_overrides) = split_source_and_overrides(&source)
+        .map_err(|e| format!("failed to parse source: {}", e))?;
+
+    let diagram = Diagram::parse(&definition)
+        .map_err(|e| format!("failed to parse diagram: {}", e))?;
+
+    // Check if source contains layout block
+    let has_block = source
+        .lines()
+        .any(|line| line.trim().eq_ignore_ascii_case(LAYOUT_BLOCK_START));
+
+    // Update overrides in state
+    {
+        let mut overrides = state
+            .overrides
+            .lock()
+            .map_err(|_| "failed to lock overrides".to_string())?;
+
+        if has_block {
+            *overrides = parsed_overrides;
+        }
+
+        // Prune overrides to only include valid node/edge IDs
+        let node_ids: std::collections::HashSet<String> = diagram.nodes.keys().cloned().collect();
+        let edge_ids: std::collections::HashSet<String> = diagram
+            .edges
+            .iter()
+            .map(|edge| edge_identifier(edge))
+            .collect();
+
+        overrides.prune(&node_ids, &edge_ids);
+    }
+
+    // Get updated overrides after pruning
+    let snapshot = {
+        state
+            .overrides
+            .lock()
+            .map_err(|_| "failed to lock overrides".to_string())?
+            .clone()
+    };
+
+    // Write definition with merged overrides to file
+    let merged = merge_source_and_overrides(&definition, &snapshot)
+        .map_err(|e| format!("failed to merge source and overrides: {}", e))?;
+
+    std::fs::write(&source_path, merged.as_bytes())
+        .map_err(|e| format!("failed to write '{}': {}", source_path.display(), e))?;
+
+    Ok(())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -622,6 +709,8 @@ pub fn run() {
             load_diagram,
             update_layout,
             update_style,
+            get_source,
+            update_source,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
